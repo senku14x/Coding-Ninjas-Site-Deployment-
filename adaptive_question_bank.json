@@ -1,0 +1,157 @@
+{
+  "Logical Functions": [
+    {
+      "id": "logic_001",
+      "difficulty": "Easy",
+      "question_text": "Let's start with a foundational concept. Can you explain the three components, or arguments, that an IF statement requires in Excel?",
+      "evaluation_rubric": [
+        "Must correctly identify all three arguments.",
+        "Argument 1: 'logical_test' (the condition to check).",
+        "Argument 2: 'value_if_true' (what to return if the condition is TRUE).",
+        "Argument 3: 'value_if_false' (what to return if the condition is FALSE)."
+      ]
+    },
+    {
+      "id": "logic_002",
+      "difficulty": "Medium",
+      "question_text": "Imagine you have a student's score in cell A2. You need to write a formula that returns 'Fail' if the score is below 50, 'Pass' if it's 50-89, and 'Distinction' if it's 90 or more. How would you do this?",
+      "evaluation_rubric": [
+        "Must provide a valid formula using 'Nested IFs' or the 'IFS' function.",
+        "Correct Nested IF: =IF(A2<50, \"Fail\", IF(A2<90, \"Pass\", \"Distinction\"))",
+        "Correct IFS: =IFS(A2<50, \"Fail\", A2<90, \"Pass\", A2>=90, \"Distinction\")",
+        "Logical structure must be correct (handling the ranges in the right order)."
+      ]
+    },
+    {
+      "id": "logic_003",
+      "difficulty": "Hard",
+      "question_text": "A salesperson (in row 2) gets a 5% bonus if they meet EITHER of two conditions: 1) Their total sales (in cell A2) are over $100,000 OR 2) They work in the 'North' region (cell B2) AND have sales over $80,000. What formula would check this and return 'Bonus' or 'No Bonus'?",
+      "evaluation_rubric": [
+        "Must provide a formula that correctly combines IF, OR, and AND.",
+        "Correct structure: =IF( OR( A2 > 100000, AND( B2=\"North\", A2 > 80000 ) ), \"Bonus\", \"No Bonus\" )",
+        "Must correctly nest the AND function *inside* the OR function as one of its logical conditions."
+      ]
+    }
+  ],
+  "Lookup Functions": [
+    {
+      "id": "lookup_001",
+      "difficulty": "Easy",
+      "question_text": "What is VLOOKUP used for, and what is its single biggest limitation?",
+      "evaluation_rubric": [
+        "Purpose: Must state it's for finding a value in the *first* column of a table and returning a value from another column in the same row.",
+        "Limitation: Must correctly identify that it CANNOT look to the left. The lookup value *must* be in the leftmost column of the table array."
+      ]
+    },
+    {
+      "id": "lookup_002",
+      "difficulty": "Medium",
+      "question_text": "Why has XLOOKUP largely replaced VLOOKUP in modern Excel? Give me two distinct advantages.",
+      "evaluation_rubric": [
+        "Advantage 1: Must mention it can 'look left' (lookup and return columns can be separate and in any order).",
+        "Advantage 2: Must mention one of the following: a) It defaults to an *exact match* (which is safer than VLOOKUP). b) It has built-in 'if_not_found' error handling. c) It can search from the bottom up."
+      ]
+    },
+    {
+      "id": "lookup_003",
+      "difficulty": "Hard",
+      "question_text": "You have a matrix of sales with 'Regions' as row headers (A2:A10) and 'Months' as column headers (B1:M1). Your data is in the grid B2:M10. How would you dynamically pull the sales value for 'South' region in 'July'?",
+      "evaluation_rubric": [
+        "Must identify this as a two-way (or matrix) lookup problem.",
+        "Classic Answer: Must describe using 'INDEX' and two 'MATCH' functions.",
+        "Correct structure: =INDEX(B2:M10, MATCH(\"South\", A2:A10, 0), MATCH(\"July\", B1:M1, 0))",
+        "Modern Answer: A nested XLOOKUP is also a valid advanced answer."
+      ]
+    }
+  ],
+  "Conditional Aggregation": [
+    {
+      "id": "cond_agg_001",
+      "difficulty": "Easy",
+      "question_text": "What is the key difference between the SUM function and the SUMIF function?",
+      "evaluation_rubric": [
+        "Must be clear: SUM adds all numbers in a range.",
+        "SUMIF adds *only* the numbers in a range that *meet a specific condition*."
+      ]
+    },
+    {
+      "id": "cond_agg_002",
+      "difficulty": "Medium",
+      "question_text": "You are given a sheet with 'Regions' in Column C and corresponding 'Sales Amounts' in Column D. What single function would you use to calculate the total sales for *only* the 'North' region?",
+      "evaluation_rubric": [
+        "Must answer 'SUMIF'.",
+        "Must correctly identify the arguments needed: The 'range' (Column C), the 'criteria' (\"North\"), and the 'sum_range' (Column D)."
+      ]
+    },
+    {
+      "id": "cond_agg_003",
+      "difficulty": "Hard",
+      "question_text": "Building on the last question: you have 'Regions' in Column C, 'Salesperson' in Column D, and 'Sales Amount' in Column E. How would you find the total sales for *only* 'Jane Doe' (in D) and *only* for the 'North' region (in C)?",
+      "evaluation_rubric": [
+        "Must answer 'SUMIFS' (with an 'S') because there are multiple criteria.",
+        "Must correctly identify the argument order: The 'sum_range' (Column E) comes *first*, followed by pairs of criteria ranges and criteria (C, \"North\"; D, \"Jane Doe\")."
+      ]
+    }
+  ],
+  "Data Aggregation": [
+    {
+      "id": "agg_001",
+      "difficulty": "Easy",
+      "question_text": "What is a Pivot Table, and what is its primary purpose?",
+      "evaluation_rubric": [
+        "Must identify it as a tool used for summarizing large amounts of data.",
+        "Must mention key actions like dragging and dropping fields into quadrants (Rows, Columns, Values, Filters) to quickly create summary reports."
+      ]
+    },
+    {
+      "id": "agg_002",
+      "difficulty": "Medium",
+      "question_text": "You create a Pivot Table to show sales by region. The 'Values' field defaults to 'Sum of Sales'. How would you change this to show the 'Average' sales instead? And how would you display that average as a '% of the Grand Total'?",
+      "evaluation_rubric": [
+        "Step 1: Must mention right-clicking the field or using the 'Value Field Settings'.",
+        "Step 2: Must mention changing the summarization type from 'Sum' to 'Average'.",
+        "Step 3: Must mention the 'Show Values As' tab and selecting '% of Grand Total'."
+      ]
+    },
+    {
+      "id": "agg_003",
+      "difficulty": "Hard",
+      "question_text": "What is the difference between putting a date field in the 'Rows' area of a Pivot Table versus putting it in the 'Filters' area?",
+      "evaluation_rubric": [
+        "'Rows' Area: Allows you to *group* the data by date parts (like year, quarter, month) and show calculations for *each period* as part of the report structure.",
+        "'Filters' Area: Allows you to filter the *entire report* to show data for only a specific date or period you select. It doesn't break down the report by that period."
+      ]
+    }
+  ],
+  "Data Transformation": [
+    {
+      "id": "transform_001",
+      "difficulty": "Easy",
+      "question_text": "You import data and have a column of names (e.g., '  john smith  ') that are all lowercase and have extra spaces. What two functions would you use to clean this into 'John Smith'?",
+      "evaluation_rubric": [
+        "Function 1: Must identify 'TRIM' (to remove extra spaces).",
+        "Function 2: Must identify 'PROPER' (to correctly capitalize the first letter of each word).",
+        "Bonus: Correctly nests them: =PROPER(TRIM(A2))"
+      ]
+    },
+    {
+      "id": "transform_002",
+      "difficulty": "Medium",
+      "question_text": "What does the 'Unpivot Columns' feature do, and what tool in Excel do you use to perform this action?",
+      "evaluation_rubric": [
+        "Purpose: Must explain it transforms 'wide' data (e.g., columns for Jan, Feb, Mar) into 'tall' or 'normalized' data (one column for 'Month' and one column for 'Value').",
+        "Tool: Must identify that this is a feature of 'Power Query' (or the 'Get & Transform' tools)."
+      ]
+    },
+    {
+      "id": "transform_003",
+      "difficulty": "Hard",
+      "question_text": "Every month, you must combine three separate CSV files from a folder. These files all need the same cleaning steps (e.g., removing N/A rows, splitting a column). Why is Power Query the dramatically superior method for this task compared to doing it manually with formulas?",
+      "evaluation_rubric": [
+        "Must identify the core concept: 'Automation' or 'Repeatability'.",
+        "Explanation: Power Query records all transformation steps. The process is built *once*.",
+        "The next month, you just refresh the query. It will automatically grab the new files, apply all the same steps, and append the data, saving hours of manual work and preventing errors."
+      ]
+    }
+  ]
+}
