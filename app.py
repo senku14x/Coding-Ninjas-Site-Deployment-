@@ -82,7 +82,7 @@ def generate_final_report(transcript_history):
     Write the complete, professional feedback report:
     """
     try:
-        response = report_model.generate_content(report_prompt)
+        response = report_model.generate_content(prompt_template)
         return response.text
     except Exception as e:
         return f"An error occurred while generating the report: {e}"
@@ -101,9 +101,9 @@ def get_next_question(current_difficulty, questions_asked_ids):
         fallback_available = [q for q in all_questions_in_pool if q['id'] not in questions_asked_ids]
         return random.choice(fallback_available) if fallback_available else None
 
-# <<< --- NEW FUNCTION TO SEND EMAIL --- >>>
+# <<< --- MODIFIED EMAIL FUNCTION (Using Port 587 / STARTTLS) --- >>>
 def send_report_by_email(candidate_name, final_report):
-    """Connects to Gmail and sends the report."""
+    """Connects to Gmail and sends the report using Port 587 (TLS)."""
     try:
         # Get email credentials from secrets
         sender_email = st.secrets["SENDER_EMAIL"]
@@ -117,13 +117,14 @@ def send_report_by_email(candidate_name, final_report):
         msg['To'] = receiver_email
         
         # Set the email body (the report)
-        # We also add the candidate's name to the top
         email_body = f"Candidate: {candidate_name}\n\n---\n\n{final_report}"
         msg.set_content(email_body)
 
-        # Connect to Gmail and send
+        # Connect to Gmail and send using Port 587 (TLS)
         context = ssl.create_default_context()
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+        # We connect to port 587 *before* it's secure
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls(context=context)  # Upgrade the connection to secure
             server.login(sender_email, sender_password)
             server.send_message(msg)
         
@@ -137,7 +138,8 @@ def send_report_by_email(candidate_name, final_report):
         print(final_report)
         print("--- END OF REPORT ---")
         return False
-# --- End of new function ---
+# --- End of modified function ---
+
 
 # --- 4. STREAMLIT APP LOGIC ---
 
