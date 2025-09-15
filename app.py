@@ -41,15 +41,6 @@ if not knowledge_base:
 
 # --- 3. ALL CORE AI & AGENT FUNCTIONS (No changes here) ---
 
-# --- (Model definitions, constants, and all our functions: 
-#      evaluate_answer, generate_final_report, get_next_question) ---
-# (We assume these functions are defined here exactly as in our previous step)
-# (For brevity, I am omitting pasting them again, but they must be here)
-
-# [Paste your three AI models, constants, and function definitions here]
-# ... (This assumes all helper functions from the previous file are pasted here) ...
-
-# NOTE: Re-pasting all functions to be explicit.
 # --- MODEL DEFINITIONS ---
 evaluator_model = genai.GenerativeModel(
     'gemini-2.5-pro',
@@ -125,23 +116,37 @@ def get_next_question(current_difficulty, questions_asked_ids):
 
 st.title("🤖 AI-Powered Excel Interviewer")
 
-# --- PASSWORD WALL ADDED HERE ---
-# We retrieve the password from Streamlit Secrets
+# --- PASSWORD WALL ---
 try:
     correct_password = st.secrets["APP_PASSWORD"]
 except KeyError:
     st.error("Password not configured for this app. Please contact the administrator.")
     st.stop()
 
-# Ask the user for the password
 password_attempt = st.text_input("Enter Access Password:", type="password")
 
 # Check if the password is correct
 if password_attempt == correct_password:
-    # --- IF PASSWORD IS CORRECT, INDENT THE ENTIRE APP LOGIC BELOW ---
     
-    # Initialize the chat and agent state (THIS IS CRITICAL)
-    def initialize_state():
+    # --- MODIFICATION 1: ASK FOR CANDIDATE NAME ---
+    if "candidate_name" not in st.session_state:
+        st.session_state.candidate_name = None
+
+    if not st.session_state.candidate_name:
+        st.session_state.candidate_name = st.text_input("Please enter your full name to begin:")
+        if st.session_state.candidate_name:
+            st.rerun() # Rerun the script now that we have a name
+        else:
+            # Wait for them to enter a name before proceeding
+            st.info("Please enter your name to start the interview.")
+            st.stop()
+    # --- END OF MODIFICATION 1 ---
+
+    
+    # --- IF PASSWORD IS CORRECT & NAME IS GIVEN, RUN THE APP ---
+    
+    # MODIFICATION 2: Pass candidate_name to initialize_state
+    def initialize_state(candidate_name):
         st.session_state.messages = []
         st.session_state.interview_history = []
         st.session_state.questions_asked_ids = []
@@ -149,7 +154,8 @@ if password_attempt == correct_password:
         st.session_state.consecutive_failures = 0
         st.session_state.hard_questions_passed = 0
         st.session_state.interview_complete = False
-        st.session_state.messages.append({"role": "ai", "content": "Welcome! I am your AI mock interviewer. Let's begin."})
+        # Use the candidate_name in the welcome message
+        st.session_state.messages.append({"role": "ai", "content": f"Welcome, {candidate_name}! I am your AI mock interviewer. Let's begin."})
         first_question = get_next_question("Easy", [])
         if first_question:
             st.session_state.current_question_data = first_question
@@ -161,7 +167,8 @@ if password_attempt == correct_password:
 
     # --- Main App Execution ---
     if "messages" not in st.session_state:
-        initialize_state()
+        # Pass the name we collected
+        initialize_state(st.session_state.candidate_name)
 
     # Display all past messages
     for message in st.session_state.messages:
@@ -198,7 +205,10 @@ if password_attempt == correct_password:
             # 5. Manage State
             st.session_state.interview_history.append({
                 "topic": last_question['topic_name'],
+                "question": last_question['question_text'],
+                "answer": prompt,
                 "score": evaluation['score'],
+                "feedback": evaluation['feedback']
                 # ... (add other data as needed)
             })
             st.session_state.questions_asked_ids.append(last_question['id'])
@@ -220,14 +230,15 @@ if password_attempt == correct_password:
 
             if st.session_state.consecutive_failures >= FAILURE_THRESHOLD:
                 break_condition_met = True
-                conclusion_message = "🤖 You've struggled on several questions. We'll stop here. Generating your final report..."
+                conclusion_message = "🤖 You've struggled on several questions. We'll stop here. Submitting your report..."
             elif st.session_state.hard_questions_passed >= SUCCESS_THRESHOLD:
                 break_condition_met = True
-                conclusion_message = "🤖 You've passed several advanced questions. Excellent performance! Generating your final report..."
+                conclusion_message = "🤖 You've passed several advanced questions. Excellent performance! Submitting your report..."
             elif len(st.session_state.questions_asked_ids) >= MAX_QUESTIONS:
                 break_condition_met = True
-                conclusion_message = f"🤖 We've reached the {MAX_QUESTIONS} question limit. Generating your final report..."
+                conclusion_message = f"🤖 We've reached the {MAX_QUESTIONS} question limit. Submitting your report..."
 
+            # --- MODIFICATION 3: HIDE FINAL REPORT ---
             # 8. Act on Break Condition (if met)
             if break_condition_met:
                 st.session_state.interview_complete = True
@@ -235,13 +246,23 @@ if password_attempt == correct_password:
                 with st.chat_message("ai"):
                     st.markdown(conclusion_message)
                 
-                with st.spinner("Generating your final feedback report..."):
+                with st.spinner("Generating and submitting your final report..."):
+                    # 1. Generate the report (in the background)
                     final_report = generate_final_report(st.session_state.interview_history)
-                    st.session_state.messages.append({"role": "ai", "content": final_report})
+                    
+                    # 2. DO NOT show the report. Print it to the logs for the company.
+                    print("--- PRIVATE HIRING MANAGER REPORT ---")
+                    print(f"Candidate: {st.session_state.candidate_name}")
+                    print(final_report)
+                    print("--- END OF REPORT ---")
+
+                    # 3. Show a generic "Thank You" message to the candidate
+                    thank_you_message = "Thank you for completing the interview! Your results have been successfully submitted to the hiring team for review. You may now close this window."
+                    st.session_state.messages.append({"role": "ai", "content": thank_you_message})
                     with st.chat_message("ai"):
-                        st.markdown(final_report)
+                        st.markdown(thank_you_message)
                 
-                st.info("Interview complete! Refresh to restart.")
+                st.info("Interview complete! You may now close this window.")
 
             # 9. If NO Break: Ask the NEXT Question
             else:
@@ -255,16 +276,30 @@ if password_attempt == correct_password:
                         with st.chat_message("ai"):
                             st.markdown(next_q_text)
                     else:
+                        # --- MODIFICATION 4: HIDE REPORT ON EXHAUSTION ---
                         st.session_state.interview_complete = True
-                        exhaustion_msg = "🤖 We've run out of questions! Generating report..."
+                        exhaustion_msg = "🤖 We've run out of questions! Submitting your report..."
                         st.session_state.messages.append({"role": "ai", "content": exhaustion_msg})
                         with st.chat_message("ai"):
                             st.markdown(exhaustion_msg)
-                        with st.spinner("Generating your final feedback report..."):
+                            
+                        with st.spinner("Generating and submitting your final report..."):
+                            # 1. Generate the report (in the background)
                             final_report = generate_final_report(st.session_state.interview_history)
-                            st.session_state.messages.append({"role": "ai", "content": final_report})
+                            
+                            # 2. DO NOT show the report. Print it to the logs.
+                            print("--- PRIVATE HIRING MANAGER REPORT ---")
+                            print(f"Candidate: {st.session_state.candidate_name}")
+                            print(final_print)
+                            print("--- END OF REPORT ---")
+
+                            # 3. Show a generic "Thank You" message
+                            thank_you_message = "Thank you for completing the interview! Your results have been successfully submitted to the hiring team for review. You may now close this window."
+                            st.session_state.messages.append({"role": "ai", "content": thank_you_message})
                             with st.chat_message("ai"):
-                                st.markdown(final_report)
+                                st.markdown(thank_you_message)
+                        
+                        st.info("Interview complete! You may now close this window.")
                                 
 elif password_attempt: # If they typed *something* but it wasn't the correct password
     st.error("Password incorrect. Please try again.", icon="🚨")
