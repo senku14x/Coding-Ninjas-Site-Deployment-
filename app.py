@@ -4,12 +4,12 @@ import json
 import random
 import os
 import pandas as pd
-from streamlit_gsheets import GSheetsConnection  
-import datetime 
+from streamlit_gsheets import GSheetsConnection  # Make sure this is in requirements.txt
+import datetime # Make sure this is in requirements.txt
 
-#CONFIGURATION & SETUP
+# --- 1. CONFIGURATION & SETUP ---
 
-
+# Set page config
 st.set_page_config(
     page_title="AI Excel Interviewer",
     page_icon="🤖",
@@ -23,9 +23,9 @@ except Exception as e:
     st.error("Google API Key not found. Please add it to your Streamlit secrets.", icon="🚨")
     st.stop()
 
-#LOAD KNOWLEDGE BASE
+# --- 2. LOAD KNOWLEDGE BASE (Cached) ---
 
-@st.cache_data 
+@st.cache_data  # This caches the file load
 def load_knowledge_base():
     """Loads the adaptive question bank from the JSON file."""
     try:
@@ -42,16 +42,16 @@ knowledge_base = load_knowledge_base()
 if not knowledge_base:
     st.stop()
 
-# ALL CORE AI & AGENT FUNCTIONS 
+# --- 3. ALL CORE AI & AGENT FUNCTIONS ---
 
-# MODEL DEFINITIONS
+# --- MODEL DEFINITIONS ---
 evaluator_model = genai.GenerativeModel(
     'gemini-2.5-pro',
     generation_config={"response_mime_type": "application/json"}
 )
 report_model = genai.GenerativeModel('gemini-2.5-pro')
 
-# CONSTANTS
+# --- CONSTANTS ---
 FAILURE_THRESHOLD = 2
 SUCCESS_THRESHOLD = 3
 MAX_QUESTIONS = 15
@@ -143,11 +143,11 @@ def save_report_to_gsheet(candidate_name, final_report, full_history):
         print("--- END OF REPORT ---")
         return False
 
-# STREAMLIT APP LOGIC
+# --- 4. STREAMLIT APP LOGIC ---
 
 st.title("🤖 AI-Powered Excel Interviewer")
 
-#PASSWORD WALL
+# --- PASSWORD WALL ---
 try:
     correct_password = st.secrets["APP_PASSWORD"]
 except KeyError:
@@ -159,7 +159,7 @@ password_attempt = st.text_input("Enter Access Password:", type="password")
 # Check if the password is correct
 if password_attempt == correct_password:
     
-    # ASK FOR CANDIDATE NAME 
+    # --- ASK FOR CANDIDATE NAME ---
     if "candidate_name" not in st.session_state:
         st.session_state.candidate_name = None
 
@@ -171,7 +171,7 @@ if password_attempt == correct_password:
             st.info("Please enter your name to start the interview.")
             st.stop()
     
-    # IF PASSWORD & NAME IS GIVEN, RUN APP 
+    # --- IF PASSWORD & NAME IS GIVEN, RUN APP ---
     
     def initialize_state(candidate_name):
         st.session_state.messages = []
@@ -187,13 +187,13 @@ if password_attempt == correct_password:
             st.session_state.current_question_data = first_question
             st.session_state.questions_asked_ids.append(first_question['id'])
             
-            # Difficulty Hidden 
+            # Difficulty is hidden from the candidate
             st.session_state.messages.append({"role": "ai", "content": f"**Topic: {first_question['topic_name']}**\n\n{first_question['question_text']}"})
         else:
             st.error("Could not load first question.")
             st.session_state.interview_complete = True
 
-    # Main App Execution
+    # --- Main App Execution ---
     if "messages" not in st.session_state:
         initialize_state(st.session_state.candidate_name)
 
@@ -202,7 +202,7 @@ if password_attempt == correct_password:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Event Loop
+    # Main event loop: Runs ONLY if the interview is NOT complete
     if not st.session_state.interview_complete:
         
         if prompt := st.chat_input("Your answer..."):
@@ -212,29 +212,30 @@ if password_attempt == correct_password:
 
             last_question = st.session_state.current_question_data
             
-            with st.spinner("Analyzing answer..."):
+            # --- MODIFICATION: Spinner text changed for neutral feedback ---
+            with st.spinner("Processing answer..."):
                 evaluation = evaluate_answer(
                     last_question['question_text'],
                     prompt,
                     last_question['evaluation_rubric']
                 )
             
-            # We still show the candidate their score/feedback per question
-            feedback_text = f"**[Score: {evaluation['score']}/5]** {evaluation['feedback']}"
-            st.session_state.messages.append({"role": "ai", "content": feedback_text})
-            with st.chat_message("ai"):
-                st.markdown(feedback_text)
-
+            # --- MODIFICATION: FEEDBACK BLOCK IS REMOVED ---
+            # The candidate no longer sees the score or feedback.
+            # We just save it and move on.
+            
+            # 5. Manage State (Silently)
             st.session_state.interview_history.append({
                 "topic": last_question['topic_name'],
                 "difficulty": last_question['difficulty'], # We still save difficulty for the report
                 "question": last_question['question_text'],
                 "answer": prompt,
                 "score": evaluation['score'],
-                "feedback": evaluation['feedback']
+                "feedback": evaluation['feedback'] # Saved for the report
             })
             st.session_state.questions_asked_ids.append(last_question['id'])
 
+            # 6. Run the "Decision Engine" (Silently)
             score = evaluation['score']
             if score >= 4:
                 st.session_state.consecutive_failures = 0
@@ -245,6 +246,7 @@ if password_attempt == correct_password:
                 st.session_state.consecutive_failures += 1
                 if st.session_state.current_difficulty == "Hard": st.session_state.current_difficulty = "Medium"
 
+            # 7. Check All Break Conditions
             break_condition_met = False
             conclusion_message = ""
 
@@ -258,7 +260,7 @@ if password_attempt == correct_password:
                 break_condition_met = True
                 conclusion_message = f"🤖 We've reached the {MAX_QUESTIONS} question limit. Submitting your report..."
 
-            # --- HIDE REPORT & SAVE TO GSHEET ---
+            # 8. Act on Break Condition (if met)
             if break_condition_met:
                 st.session_state.interview_complete = True
                 st.session_state.messages.append({"role": "ai", "content": conclusion_message})
@@ -294,11 +296,11 @@ if password_attempt == correct_password:
                         st.session_state.current_question_data = next_question
                         st.session_state.questions_asked_ids.append(next_question['id'])
                         
-                        # --- MODIFICATION 2: Difficulty Hidden ---
+                        # Difficulty is hidden
                         next_q_text = f"**Topic: {next_question['topic_name']}**\n\n{next_question['question_text']}"
                         st.session_state.messages.append({"role": "ai", "content": next_q_text})
-                        with st.chat_message("ai"):
-                            st.markdown(next_q_text)
+                        # We must re-run the script to show the new message
+                        st.rerun() 
                     else:
                         # --- HIDE REPORT & SAVE TO GSHEET (on Exhaustion) ---
                         st.session_state.interview_complete = True
