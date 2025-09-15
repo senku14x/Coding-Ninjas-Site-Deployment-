@@ -3,10 +3,13 @@ import google.generativeai as genai
 import json
 import random
 import os
+import pandas as pd
+from streamlit_gsheets import GSheetsConnection  
+import datetime 
 
-# --- 1. CONFIGURATION & SETUP ---
+#CONFIGURATION & SETUP
 
-# Set page config
+
 st.set_page_config(
     page_title="AI Excel Interviewer",
     page_icon="🤖",
@@ -20,9 +23,9 @@ except Exception as e:
     st.error("Google API Key not found. Please add it to your Streamlit secrets.", icon="🚨")
     st.stop()
 
-# --- 2. LOAD KNOWLEDGE BASE (Cached) ---
+#LOAD KNOWLEDGE BASE
 
-@st.cache_data  # This caches the file load
+@st.cache_data 
 def load_knowledge_base():
     """Loads the adaptive question bank from the JSON file."""
     try:
@@ -39,16 +42,16 @@ knowledge_base = load_knowledge_base()
 if not knowledge_base:
     st.stop()
 
-# --- 3. ALL CORE AI & AGENT FUNCTIONS (No changes here) ---
+# ALL CORE AI & AGENT FUNCTIONS 
 
-# --- MODEL DEFINITIONS ---
+# MODEL DEFINITIONS
 evaluator_model = genai.GenerativeModel(
     'gemini-2.5-pro',
     generation_config={"response_mime_type": "application/json"}
 )
 report_model = genai.GenerativeModel('gemini-2.5-pro')
 
-# --- CONSTANTS ---
+# CONSTANTS
 FAILURE_THRESHOLD = 2
 SUCCESS_THRESHOLD = 3
 MAX_QUESTIONS = 15
@@ -109,14 +112,42 @@ def get_next_question(current_difficulty, questions_asked_ids):
     else:
         fallback_available = [q for q in all_questions_in_pool if q['id'] not in questions_asked_ids]
         return random.choice(fallback_available) if fallback_available else None
-# --- End of function definitions ---
 
+def save_report_to_gsheet(candidate_name, final_report, full_history):
+    """Connects to Google Sheets and appends the new report."""
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        
+        new_report_data = pd.DataFrame(
+            [
+                {
+                    "Candidate Name": candidate_name,
+                    "Date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+                    "Final Report": final_report,
+                    "Full Transcript (JSON)": json.dumps(full_history) 
+                }
+            ]
+        )
+        
+        conn.append(
+            worksheet="Sheet1", # Or your specific sheet name
+            data=new_report_data,
+            header=False 
+        )
+        return True
+    except Exception as e:
+        print(f"Google Sheets Error: {e}")
+        print("--- FALLBACK: PRIVATE HIRING MANAGER REPORT (Sheet Save Failed) ---")
+        print(f"Candidate: {candidate_name}")
+        print(final_report)
+        print("--- END OF REPORT ---")
+        return False
 
-# --- 4. STREAMLIT APP LOGIC ---
+# STREAMLIT APP LOGIC
 
 st.title("🤖 AI-Powered Excel Interviewer")
 
-# --- PASSWORD WALL ---
+#PASSWORD WALL
 try:
     correct_password = st.secrets["APP_PASSWORD"]
 except KeyError:
@@ -128,24 +159,20 @@ password_attempt = st.text_input("Enter Access Password:", type="password")
 # Check if the password is correct
 if password_attempt == correct_password:
     
-    # --- MODIFICATION 1: ASK FOR CANDIDATE NAME ---
+    # ASK FOR CANDIDATE NAME 
     if "candidate_name" not in st.session_state:
         st.session_state.candidate_name = None
 
     if not st.session_state.candidate_name:
         st.session_state.candidate_name = st.text_input("Please enter your full name to begin:")
         if st.session_state.candidate_name:
-            st.rerun() # Rerun the script now that we have a name
+            st.rerun() 
         else:
-            # Wait for them to enter a name before proceeding
             st.info("Please enter your name to start the interview.")
             st.stop()
-    # --- END OF MODIFICATION 1 ---
-
     
-    # --- IF PASSWORD IS CORRECT & NAME IS GIVEN, RUN THE APP ---
+    # IF PASSWORD & NAME IS GIVEN, RUN APP 
     
-    # MODIFICATION 2: Pass candidate_name to initialize_state
     def initialize_state(candidate_name):
         st.session_state.messages = []
         st.session_state.interview_history = []
@@ -154,20 +181,20 @@ if password_attempt == correct_password:
         st.session_state.consecutive_failures = 0
         st.session_state.hard_questions_passed = 0
         st.session_state.interview_complete = False
-        # Use the candidate_name in the welcome message
         st.session_state.messages.append({"role": "ai", "content": f"Welcome, {candidate_name}! I am your AI mock interviewer. Let's begin."})
         first_question = get_next_question("Easy", [])
         if first_question:
             st.session_state.current_question_data = first_question
             st.session_state.questions_asked_ids.append(first_question['id'])
-            st.session_state.messages.append({"role": "ai", "content": f"**Difficulty: {first_question['difficulty']} | Topic: {first_question['topic_name']}**\n\n{first_question['question_text']}"})
+            
+            # Difficulty Hidden 
+            st.session_state.messages.append({"role": "ai", "content": f"**Topic: {first_question['topic_name']}**\n\n{first_question['question_text']}"})
         else:
             st.error("Could not load first question.")
             st.session_state.interview_complete = True
 
-    # --- Main App Execution ---
+    # Main App Execution
     if "messages" not in st.session_state:
-        # Pass the name we collected
         initialize_state(st.session_state.candidate_name)
 
     # Display all past messages
@@ -175,20 +202,16 @@ if password_attempt == correct_password:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Main event loop: Runs ONLY if the interview is NOT complete
+    # Event Loop
     if not st.session_state.interview_complete:
         
-        # Get user input
         if prompt := st.chat_input("Your answer..."):
-            # 1. Add user's answer
             st.session_state.messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
 
-            # 2. Get the question they just answered
             last_question = st.session_state.current_question_data
             
-            # 3. Call the "Brain" (Evaluate)
             with st.spinner("Analyzing answer..."):
                 evaluation = evaluate_answer(
                     last_question['question_text'],
@@ -196,24 +219,22 @@ if password_attempt == correct_password:
                     last_question['evaluation_rubric']
                 )
             
-            # 4. Add AI's feedback
+            # We still show the candidate their score/feedback per question
             feedback_text = f"**[Score: {evaluation['score']}/5]** {evaluation['feedback']}"
             st.session_state.messages.append({"role": "ai", "content": feedback_text})
             with st.chat_message("ai"):
                 st.markdown(feedback_text)
 
-            # 5. Manage State
             st.session_state.interview_history.append({
                 "topic": last_question['topic_name'],
+                "difficulty": last_question['difficulty'], # We still save difficulty for the report
                 "question": last_question['question_text'],
                 "answer": prompt,
                 "score": evaluation['score'],
                 "feedback": evaluation['feedback']
-                # ... (add other data as needed)
             })
             st.session_state.questions_asked_ids.append(last_question['id'])
 
-            # 6. Run the "Decision Engine"
             score = evaluation['score']
             if score >= 4:
                 st.session_state.consecutive_failures = 0
@@ -224,7 +245,6 @@ if password_attempt == correct_password:
                 st.session_state.consecutive_failures += 1
                 if st.session_state.current_difficulty == "Hard": st.session_state.current_difficulty = "Medium"
 
-            # 7. Check All Break Conditions
             break_condition_met = False
             conclusion_message = ""
 
@@ -238,8 +258,7 @@ if password_attempt == correct_password:
                 break_condition_met = True
                 conclusion_message = f"🤖 We've reached the {MAX_QUESTIONS} question limit. Submitting your report..."
 
-            # --- MODIFICATION 3: HIDE FINAL REPORT ---
-            # 8. Act on Break Condition (if met)
+            # --- HIDE REPORT & SAVE TO GSHEET ---
             if break_condition_met:
                 st.session_state.interview_complete = True
                 st.session_state.messages.append({"role": "ai", "content": conclusion_message})
@@ -247,16 +266,19 @@ if password_attempt == correct_password:
                     st.markdown(conclusion_message)
                 
                 with st.spinner("Generating and submitting your final report..."):
-                    # 1. Generate the report (in the background)
                     final_report = generate_final_report(st.session_state.interview_history)
                     
-                    # 2. DO NOT show the report. Print it to the logs for the company.
-                    print("--- PRIVATE HIRING MANAGER REPORT ---")
-                    print(f"Candidate: {st.session_state.candidate_name}")
-                    print(final_report)
-                    print("--- END OF REPORT ---")
-
-                    # 3. Show a generic "Thank You" message to the candidate
+                    save_success = save_report_to_gsheet(
+                        st.session_state.candidate_name, 
+                        final_report, 
+                        st.session_state.interview_history
+                    )
+                    
+                    if save_success:
+                        print(f"Successfully saved report for {st.session_state.candidate_name} to Google Sheets.")
+                    else:
+                        print(f"Failed to save report for {st.session_state.candidate_name} to Google Sheets. Check logs.")
+                        
                     thank_you_message = "Thank you for completing the interview! Your results have been successfully submitted to the hiring team for review. You may now close this window."
                     st.session_state.messages.append({"role": "ai", "content": thank_you_message})
                     with st.chat_message("ai"):
@@ -271,12 +293,14 @@ if password_attempt == correct_password:
                     if next_question:
                         st.session_state.current_question_data = next_question
                         st.session_state.questions_asked_ids.append(next_question['id'])
-                        next_q_text = f"**Difficulty: {next_question['difficulty']} | Topic: {next_question['topic_name']}**\n\n{next_question['question_text']}"
+                        
+                        # --- MODIFICATION 2: Difficulty Hidden ---
+                        next_q_text = f"**Topic: {next_question['topic_name']}**\n\n{next_question['question_text']}"
                         st.session_state.messages.append({"role": "ai", "content": next_q_text})
                         with st.chat_message("ai"):
                             st.markdown(next_q_text)
                     else:
-                        # --- MODIFICATION 4: HIDE REPORT ON EXHAUSTION ---
+                        # --- HIDE REPORT & SAVE TO GSHEET (on Exhaustion) ---
                         st.session_state.interview_complete = True
                         exhaustion_msg = "🤖 We've run out of questions! Submitting your report..."
                         st.session_state.messages.append({"role": "ai", "content": exhaustion_msg})
@@ -284,16 +308,19 @@ if password_attempt == correct_password:
                             st.markdown(exhaustion_msg)
                             
                         with st.spinner("Generating and submitting your final report..."):
-                            # 1. Generate the report (in the background)
                             final_report = generate_final_report(st.session_state.interview_history)
                             
-                            # 2. DO NOT show the report. Print it to the logs.
-                            print("--- PRIVATE HIRING MANAGER REPORT ---")
-                            print(f"Candidate: {st.session_state.candidate_name}")
-                            print(final_print)
-                            print("--- END OF REPORT ---")
+                            save_success = save_report_to_gsheet(
+                                st.session_state.candidate_name, 
+                                final_report,
+                                st.session_state.interview_history
+                            )
+                            
+                            if save_success:
+                                print(f"Successfully saved report for {st.session_state.candidate_name} to Google Sheets.")
+                            else:
+                                print(f"Failed to save report for {st.session_state.candidate_name} to Google Sheets. Check logs.")
 
-                            # 3. Show a generic "Thank You" message
                             thank_you_message = "Thank you for completing the interview! Your results have been successfully submitted to the hiring team for review. You may now close this window."
                             st.session_state.messages.append({"role": "ai", "content": thank_you_message})
                             with st.chat_message("ai"):
