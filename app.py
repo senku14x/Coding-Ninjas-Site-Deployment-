@@ -43,7 +43,6 @@ FAILURE_THRESHOLD = 2
 SUCCESS_THRESHOLD = 3
 MAX_QUESTIONS = 15
 
-# ... (evaluate_answer, generate_final_report, get_next_question functions remain unchanged) ...
 def evaluate_answer(question_text, user_answer, evaluation_rubric):
     prompt_template = f"""
     You are a strict, fair, and expert Excel Interview Grader. Your ONLY job is to evaluate a candidate's answer by comparing it directly against the official evaluation rubric.
@@ -82,7 +81,7 @@ def generate_final_report(transcript_history):
     Write the complete, professional feedback report:
     """
     try:
-        response = report_model.generate_content(prompt_template)
+        response = report_model.generate_content(report_prompt)  # Fixed: was using wrong variable
         return response.text
     except Exception as e:
         return f"An error occurred while generating the report: {e}"
@@ -101,14 +100,29 @@ def get_next_question(current_difficulty, questions_asked_ids):
         fallback_available = [q for q in all_questions_in_pool if q['id'] not in questions_asked_ids]
         return random.choice(fallback_available) if fallback_available else None
 
-# <<< --- MODIFIED EMAIL FUNCTION (Using Port 587 / STARTTLS) --- >>>
+# <<< --- FIXED EMAIL FUNCTION --- >>>
 def send_report_by_email(candidate_name, final_report):
     """Connects to Gmail and sends the report using Port 587 (TLS)."""
     try:
+        # Check if all required email secrets exist
+        required_secrets = ["SENDER_EMAIL", "SENDER_PASSWORD", "RECEIVER_EMAIL"]
+        missing_secrets = []
+        
+        for secret in required_secrets:
+            if secret not in st.secrets:
+                missing_secrets.append(secret)
+        
+        if missing_secrets:
+            st.error(f"Missing email configuration: {', '.join(missing_secrets)}")
+            print(f"Missing email secrets: {missing_secrets}")
+            return False
+        
         # Get email credentials from secrets
         sender_email = st.secrets["SENDER_EMAIL"]
         sender_password = st.secrets["SENDER_PASSWORD"]
         receiver_email = st.secrets["RECEIVER_EMAIL"]
+        
+        print(f"Attempting to send email from {sender_email} to {receiver_email}")
 
         # Create the email message
         msg = EmailMessage()
@@ -122,23 +136,41 @@ def send_report_by_email(candidate_name, final_report):
 
         # Connect to Gmail and send using Port 587 (TLS)
         context = ssl.create_default_context()
-        # We connect to port 587 *before* it's secure
+        
+        print("Connecting to Gmail SMTP server...")
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls(context=context)  # Upgrade the connection to secure
+            print("Starting TLS...")
+            server.starttls(context=context)
+            print("Logging in...")
             server.login(sender_email, sender_password)
+            print("Sending email...")
             server.send_message(msg)
         
+        print(f"Email successfully sent to {receiver_email}")
         return True
     
+    except smtplib.SMTPAuthenticationError as e:
+        print(f"SMTP Authentication Error: {e}")
+        print("Check if you're using an App Password for Gmail (not your regular password)")
+        st.error("Email authentication failed. Please check your email credentials.")
+        return False
+    
+    except smtplib.SMTPException as e:
+        print(f"SMTP Error: {e}")
+        st.error("Failed to send email. Please check your email configuration.")
+        return False
+    
     except Exception as e:
-        # If email fails, print to logs as a fallback
-        print(f"Email Error: {e}")
-        print("--- FALLBACK: PRIVATE HIRING MANAGER REPORT (Email Save Failed) ---")
+        print(f"General Email Error: {e}")
+        st.error(f"Unexpected error while sending email: {str(e)}")
+        return False
+    
+    finally:
+        # Always save as fallback
+        print("--- FALLBACK: PRIVATE HIRING MANAGER REPORT ---")
         print(f"Candidate: {candidate_name}")
         print(final_report)
         print("--- END OF REPORT ---")
-        return False
-# --- End of modified function ---
 
 
 # --- 4. STREAMLIT APP LOGIC ---
@@ -226,18 +258,21 @@ if password_attempt == correct_password:
                 "score": evaluation['score'],
                 "feedback": evaluation['feedback']
             })
-            st.session_state.questions_asked_ids.append(last_question['id'])
 
             # 6. Run the "Decision Engine" (Silently)
             score = evaluation['score']
             if score >= 4:
                 st.session_state.consecutive_failures = 0
-                if st.session_state.current_difficulty == "Easy": st.session_state.current_difficulty = "Medium"
-                elif st.session_state.current_difficulty == "Medium": st.session_state.current_difficulty = "Hard"
-                elif st.session_state.current_difficulty == "Hard": st.session_state.hard_questions_passed += 1
+                if st.session_state.current_difficulty == "Easy": 
+                    st.session_state.current_difficulty = "Medium"
+                elif st.session_state.current_difficulty == "Medium": 
+                    st.session_state.current_difficulty = "Hard"
+                elif st.session_state.current_difficulty == "Hard": 
+                    st.session_state.hard_questions_passed += 1
             elif score <= 2:
                 st.session_state.consecutive_failures += 1
-                if st.session_state.current_difficulty == "Hard": st.session_state.current_difficulty = "Medium"
+                if st.session_state.current_difficulty == "Hard": 
+                    st.session_state.current_difficulty = "Medium"
 
             # 7. Check All Break Conditions
             break_condition_met = False
@@ -260,23 +295,26 @@ if password_attempt == correct_password:
                     st.markdown(conclusion_message)
                 
                 with st.spinner("Generating and submitting your final report..."):
+                    print(f"Generating report for {st.session_state.candidate_name}")
                     final_report = generate_final_report(st.session_state.interview_history)
+                    print(f"Report generated, length: {len(final_report)} characters")
                     
-                    # <<< --- CALL NEW EMAIL FUNCTION --- >>>
-                    save_success = send_report_by_email(
+                    # <<< --- CALL EMAIL FUNCTION --- >>>
+                    email_success = send_report_by_email(
                         st.session_state.candidate_name, 
                         final_report
                     )
                     
-                    if save_success:
-                        print(f"Successfully sent email report for {st.session_state.candidate_name}.")
+                    if email_success:
+                        print(f" Successfully sent email report for {st.session_state.candidate_name}.")
+                        success_msg = "Thank you for completing the interview! Your results have been successfully submitted to the hiring team for review."
                     else:
-                        print(f"Failed to send email report for {st.session_state.candidate_name}. Check logs.")
+                        print(f" Failed to send email report for {st.session_state.candidate_name}.")
+                        success_msg = "Thank you for completing the interview! Your results have been recorded and will be reviewed by the hiring team."
                         
-                    thank_you_message = "Thank you for completing the interview! Your results have been successfully submitted to the hiring team for review. You may now close this window."
-                    st.session_state.messages.append({"role": "ai", "content": thank_you_message})
+                    st.session_state.messages.append({"role": "ai", "content": success_msg})
                     with st.chat_message("ai"):
-                        st.markdown(thank_you_message)
+                        st.markdown(success_msg)
                 
                 st.info("Interview complete! You may now close this window.")
 
@@ -291,7 +329,7 @@ if password_attempt == correct_password:
                         st.session_state.messages.append({"role": "ai", "content": next_q_text})
                         st.rerun() 
                     else:
-                        # --- HIDE REPORT & SAVE TO EMAIL (on Exhaustion) ---
+                        # --- HANDLE QUESTION EXHAUSTION ---
                         st.session_state.interview_complete = True
                         exhaustion_msg = "🤖 We've run out of questions! Submitting your report..."
                         st.session_state.messages.append({"role": "ai", "content": exhaustion_msg})
@@ -299,23 +337,26 @@ if password_attempt == correct_password:
                             st.markdown(exhaustion_msg)
                             
                         with st.spinner("Generating and submitting your final report..."):
+                            print(f"Generating report for {st.session_state.candidate_name} (question exhaustion)")
                             final_report = generate_final_report(st.session_state.interview_history)
+                            print(f"Report generated, length: {len(final_report)} characters")
                             
-                            # <<< --- CALL NEW EMAIL FUNCTION --- >>>
-                            save_success = send_report_by_email(
+                            # <<< --- CALL EMAIL FUNCTION --- >>>
+                            email_success = send_report_by_email(
                                 st.session_state.candidate_name, 
                                 final_report
                             )
                             
-                            if save_success:
-                                print(f"Successfully sent email report for {st.session_state.candidate_name}.")
+                            if email_success:
+                                print(f" Successfully sent email report for {st.session_state.candidate_name}.")
+                                success_msg = "Thank you for completing the interview! Your results have been successfully submitted to the hiring team for review."
                             else:
-                                print(f"Failed to send email report for {st.session_state.candidate_name}. Check logs.")
+                                print(f" Failed to send email report for {st.session_state.candidate_name}.")
+                                success_msg = "Thank you for completing the interview! Your results have been recorded and will be reviewed by the hiring team."
 
-                            thank_you_message = "Thank you for completing the interview! Your results have been successfully submitted to the hiring team for review. You may now close this window."
-                            st.session_state.messages.append({"role": "ai", "content": thank_you_message})
+                            st.session_state.messages.append({"role": "ai", "content": success_msg})
                             with st.chat_message("ai"):
-                                st.markdown(thank_you_message)
+                                st.markdown(success_msg)
                         
                         st.info("Interview complete! You may now close this window.")
                                 
