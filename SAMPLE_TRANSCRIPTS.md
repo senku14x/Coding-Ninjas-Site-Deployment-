@@ -28,3 +28,30 @@ I **highly recommend** advancing this candidate to the next stage of the hiring 
 
 
 ### Sample 2
+
+Candidate: Anisha Kumari
+
+---
+
+Here is the performance report for the job candidate's Excel mock interview.
+
+***
+
+## Overall Performance Summary
+
+The candidate demonstrated a very basic conceptual understanding of data aggregation but struggled significantly with core Excel functions and conditional logic. Performance on the easy-difficulty questions indicates a foundational knowledge gap that would be a considerable challenge in a data-centric role. While the candidate could articulate the high-level purpose of a Pivot Table, they were unable to correctly describe the function or limitations of VLOOKUP and could not explain the difference between SUM and SUMIF.
+
+## Key Strengths
+
+*   **Conceptual Understanding of Data Summarization:** The candidate correctly identified that a Pivot Table is a tool used to summarize and organize large datasets to spot patterns and trends. This shows an understanding of the *why* behind data aggregation, even if the technical details were incomplete.
+
+## Areas for Improvement
+
+*   **Fundamental Function Knowledge:** There was a critical misunderstanding of the VLOOKUP function. The candidate incorrectly stated its purpose and its primary limitation. A thorough review of core lookup functions (VLOOKUP, HLOOKUP, XLOOKUP, INDEX/MATCH) is essential.
+*   **Conditional Logic:** The inability to explain the SUMIF function highlights a gap in understanding conditional formulas. Mastery of conditional functions (like SUMIF, COUNTIF, and IF statements) is a prerequisite for most data analysis tasks in Excel.
+*   **Technical Accuracy:** The candidate needs to focus on providing precise, technically correct answers. For instance, while their Pivot Table definition was conceptually sound, it missed the key operational detail of how fields are manipulated, which is central to its use.
+*   **Interview Preparation:** Answering "I don't know" to a fundamental question suggests a need for more comprehensive preparation covering the most common Excel functions and tools used in data management.
+
+## Final Recommendation
+
+At this time, I cannot recommend moving forward with the candidate for a role that requires proficiency in Excel. The observed knowledge gaps in fundamental areas such as lookup functions and conditional aggregation are significant. The candidate is encouraged to undertake a structured review of core Excel principles and gain hands-on practice. With dedicated study, they could be a more suitable candidate in the future.
