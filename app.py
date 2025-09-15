@@ -157,7 +157,7 @@ if password_attempt == correct_password:
     
     # --- ASK FOR CANDIDATE NAME ---
     if "candidate_name" not in st.session_state:
-        st.session_state.candidate_.name = None
+        st.session_state.candidate_name = None
 
     if not st.session_state.candidate_name:
         st.session_state.candidate_name = st.text_input("Please enter your full name to begin:")
