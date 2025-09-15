@@ -1,4 +1,0 @@
-streamlit
-google-generativeai
-streamlit-gsheets-connector
-pandas
